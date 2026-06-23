@@ -208,6 +208,44 @@
   .docview th{background:var(--surface-2);font-weight:700;}
   .docview img{max-width:100%;}
 
+  /* ---- Rendered-PDF comparison (pages + aligned change list) ---- */
+  .pdfcmp{
+    flex:1;min-height:0;display:flex;
+    border:1px solid var(--border);border-radius:16px;overflow:hidden;
+    box-shadow:0 1px 2px rgba(30,31,34,.04);
+  }
+  .pdf-col{flex:1;min-height:0;overflow:auto;background:var(--surface-2);padding:14px;}
+  .pdf-col.old{border-right:1px solid var(--border);}
+  .pdf-changes{
+    width:300px;flex:none;min-height:0;overflow:auto;background:var(--bg);
+    border-left:1px solid var(--border);position:relative;
+  }
+  .changes-inner{position:relative;width:100%;}
+  .pdf-page{position:relative;margin:0 auto 14px;background:#fff;box-shadow:0 1px 5px rgba(30,31,34,.15);}
+  .pdf-page canvas{display:block;}
+  .pdf-overlay{position:absolute;inset:0;pointer-events:none;}
+  .pdf-hi{position:absolute;border-radius:2px;pointer-events:none;}
+  .pdf-hi.add{background:rgba(59,165,92,.22);box-shadow:inset 0 0 0 1px rgba(59,165,92,.55);}
+  .pdf-hi.del{background:rgba(216,60,62,.20);box-shadow:inset 0 0 0 1px rgba(216,60,62,.55);}
+  .pdf-hi.flash{animation:hiFlash 1.1s ease;}
+  @keyframes hiFlash{0%,100%{outline:0 solid transparent;}30%{outline:3px solid var(--accent);}}
+
+  .change-entry{
+    position:absolute;left:10px;right:10px;padding:7px 11px;border-radius:9px;
+    border:1px solid var(--border);background:var(--bg);font-size:12px;cursor:pointer;
+    box-shadow:0 1px 2px rgba(30,31,34,.05);transition:border-color .12s,box-shadow .12s;
+  }
+  .change-entry:hover{border-color:var(--accent);box-shadow:0 2px 8px rgba(88,101,242,.18);}
+  .change-entry .tag{font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.6px;}
+  .change-entry.add .tag{color:var(--success-text);}
+  .change-entry.del .tag{color:var(--danger);}
+  .change-entry.change .tag{color:var(--accent-deep);}
+  .change-entry .snippet{color:var(--text-secondary);display:block;margin-top:2px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .change-entry .snippet del{color:var(--danger);text-decoration:line-through;}
+  .change-entry .snippet ins{color:var(--success-text);text-decoration:none;}
+  .changes-empty{position:absolute;top:16px;left:0;right:0;text-align:center;color:var(--muted);font-size:13px;}
+
   /* Redline */
   .redline-wrap{
     flex:1;min-height:0;overflow:auto;
@@ -334,7 +372,7 @@ function readAsText(file){
    - text  → plain text of the block (used for word-level diffing)
    - cmp   → normalized text used to match blocks between the two documents     */
 
-async function extractBlocks(file){
+async function extractDoc(file){
   const name = (file.name || "").toLowerCase();
   const ext = name.slice(name.lastIndexOf(".") + 1);
 
@@ -342,7 +380,7 @@ async function extractBlocks(file){
     if (!window.mammoth) throw new Error("Word parser failed to load (check your connection).");
     const buf = await readAsArrayBuffer(file);
     const result = await mammoth.convertToHtml({ arrayBuffer: buf });
-    return blocksFromHtml(result.value);
+    return { kind:"text", blocks: blocksFromHtml(result.value), pdf:null };
   }
 
   if (ext === "doc"){
@@ -352,17 +390,19 @@ async function extractBlocks(file){
   if (ext === "pdf"){
     if (!window.pdfjsLib) throw new Error("PDF parser failed to load (check your connection).");
     const buf = await readAsArrayBuffer(file);
-    return await blocksFromPdf(buf);
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    const blocks = await blocksFromPdf(pdf);
+    return { kind:"pdf", blocks, pdf };
   }
 
   if (ext === "html" || ext === "htm"){
     const raw = await readAsText(file);
-    return blocksFromHtml(raw);
+    return { kind:"text", blocks: blocksFromHtml(raw), pdf:null };
   }
 
   // txt, md, csv and everything else: plain text split into paragraphs.
   const text = await readAsText(file);
-  return blocksFromPlainText(text);
+  return { kind:"text", blocks: blocksFromPlainText(text), pdf:null };
 }
 
 function mkBlock(openTag, closeTag, inner, text){
@@ -412,8 +452,7 @@ function blocksFromPlainText(text){
 
 /* Build blocks from a PDF — one block per visual line, preserving relative font
    size and bold so headings stay big/bold and the layout reads like the file. */
-async function blocksFromPdf(buf){
-  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+async function blocksFromPdf(pdf){
   const rawLines = [];
 
   for (let i = 1; i <= pdf.numPages; i++){
@@ -499,10 +538,10 @@ async function handleFile(which, file){
   els.status.classList.remove("error");
   els.status.innerHTML = '<span class="spinner"></span>Reading "' + escapeHtml(file.name) + '"…';
   try {
-    const blocks = await extractBlocks(file);
-    if (!blocks.length) throw new Error("No readable text found in " + file.name + ".");
-    const charCount = blocks.reduce((n, b) => n + b.text.length, 0);
-    state.docs[which] = { name: file.name, size: file.size, blocks, charCount };
+    const doc = await extractDoc(file);
+    if (!doc.blocks.length) throw new Error("No readable text found in " + file.name + ".");
+    const charCount = doc.blocks.reduce((n, b) => n + b.text.length, 0);
+    state.docs[which] = { name: file.name, size: file.size, kind: doc.kind, pdf: doc.pdf, blocks: doc.blocks, charCount };
     renderDropzone(which);
     setStatus("");
   } catch (err){
@@ -560,18 +599,28 @@ document.getElementById("mode-toggle").addEventListener("click", e=>{
 
 els.compare.addEventListener("click", runCompare);
 
-function runCompare(){
+async function runCompare(){
   if (!(state.docs.old && state.docs.new)) return;
   setStatus("");
-  const oldB = state.docs.old.blocks;
-  const newB = state.docs.new.blocks;
+  const oldDoc = state.docs.old, newDoc = state.docs.new;
+  els.results.classList.add("show");
+
+  // Side-by-side of two PDFs → render the real pages with an aligned change list.
+  if (state.mode === "sbs" && oldDoc.kind === "pdf" && newDoc.kind === "pdf"){
+    try {
+      await renderPdfCompare(oldDoc, newDoc);
+      return;
+    } catch (err){
+      console.error("PDF render failed; falling back to text view.", err);
+      setStatus("Couldn't render the pages — showing the text comparison instead.", true);
+    }
+  }
 
   if (state.mode === "sbs"){
-    renderSideBySide(oldB, newB);
+    renderSideBySide(oldDoc.blocks, newDoc.blocks);
   } else {
-    renderRedline(oldB, newB);
+    renderRedline(oldDoc.blocks, newDoc.blocks);
   }
-  els.results.classList.add("show");
 }
 
 /* ---------- Helpers ---------- */
@@ -741,6 +790,223 @@ function renderRedline(oldB, newB){
     '</div>' +
     '<div class="redline-wrap docview">' + html + '</div>';
 }
+
+/* ============================================================
+   Rendered-PDF comparison: real pages + aligned change list
+   ============================================================ */
+
+const normTxt = s => (s || "").replace(/\s+/g, " ").trim();
+
+// Render every page of a PDF into `colEl`, returning the page-line geometry
+// (one entry per visual line, with its on-screen rectangle + global Y).
+async function renderPdfColumn(pdf, colEl){
+  const lines = [];
+  const targetW = Math.max(280, (colEl.clientWidth || 600) - 28);
+
+  for (let p = 1; p <= pdf.numPages; p++){
+    const page = await pdf.getPage(p);
+    const base = page.getViewport({ scale: 1 });
+    const scale = Math.max(0.4, Math.min(2.2, targetW / base.width));
+    const viewport = page.getViewport({ scale });
+
+    const wrap = document.createElement("div");
+    wrap.className = "pdf-page";
+    wrap.style.width = viewport.width + "px";
+    wrap.style.height = viewport.height + "px";
+
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.floor(viewport.width);
+    canvas.height = Math.floor(viewport.height);
+    wrap.appendChild(canvas);
+
+    const overlay = document.createElement("div");
+    overlay.className = "pdf-overlay";
+    wrap.appendChild(overlay);
+    colEl.appendChild(wrap);
+
+    // annotationMode DISABLE strips highlight/markup annotations (e.g. the green).
+    const renderOpts = { canvasContext: canvas.getContext("2d"), viewport };
+    if (pdfjsLib.AnnotationMode) renderOpts.annotationMode = pdfjsLib.AnnotationMode.DISABLE;
+    await page.render(renderOpts).promise;
+
+    // Group text items into visual lines using their baseline Y.
+    const tc = await page.getTextContent();
+    let cur = null;
+    const pageLines = [];
+    for (const it of tc.items){
+      const tx = pdfjsLib.Util.transform(viewport.transform, it.transform);
+      const x = tx[4], by = tx[5];
+      const h = Math.hypot(tx[2], tx[3]) || 10;
+      const w = (it.width || 0) * scale;
+      if (!cur || Math.abs(by - cur.by) > Math.max(3, h * 0.5)){
+        if (cur) pageLines.push(cur);
+        cur = { by, minX:x, maxX:x + w, maxH:h, text:it.str };
+      } else {
+        cur.minX = Math.min(cur.minX, x);
+        cur.maxX = Math.max(cur.maxX, x + w);
+        cur.maxH = Math.max(cur.maxH, h);
+        cur.text += it.str;
+      }
+    }
+    if (cur) pageLines.push(cur);
+
+    for (const l of pageLines){
+      if (!l.text.trim()) continue;
+      const rect = { x:l.minX, y:l.by - l.maxH, w:Math.max(6, l.maxX - l.minX), h:l.maxH * 1.3 };
+      lines.push({ wrap, overlay, rect, text:l.text });
+    }
+  }
+
+  // Global Y of each line within the scrolling column (needs layout done above).
+  for (const ln of lines) ln.gY = ln.wrap.offsetTop + ln.rect.y;
+  return lines;
+}
+
+function addHighlight(line, cls){
+  const d = document.createElement("div");
+  d.className = "pdf-hi " + cls;
+  d.style.left = line.rect.x + "px";
+  d.style.top = line.rect.y + "px";
+  d.style.width = line.rect.w + "px";
+  d.style.height = line.rect.h + "px";
+  line.overlay.appendChild(d);
+  line.hiEl = d;
+  return d;
+}
+
+// Piecewise-linear map of a scroll position from one column to the other,
+// using matched (equal) lines as anchors.
+function mapY(y, anchors, from, to){
+  if (!anchors.length) return y;
+  if (y <= anchors[0][from]) return anchors[0][to];
+  const last = anchors[anchors.length - 1];
+  if (y >= last[from]) return last[to] + (y - last[from]);
+  let lo = 0, hi = anchors.length - 1;
+  while (lo + 1 < hi){ const m = (lo + hi) >> 1; if (anchors[m][from] <= y) lo = m; else hi = m; }
+  const a = anchors[lo], b = anchors[hi];
+  const t = (y - a[from]) / ((b[from] - a[from]) || 1);
+  return a[to] + t * (b[to] - a[to]);
+}
+
+async function renderPdfCompare(oldDoc, newDoc){
+  els.summary.innerHTML = '<div class="chip"><span class="spinner"></span>Rendering pages…</div>';
+  els.output.innerHTML =
+    '<div class="pdfcmp">' +
+      '<div class="pdf-col old" id="pdfOld"></div>' +
+      '<div class="pdf-col new" id="pdfNew"></div>' +
+      '<div class="pdf-changes" id="pdfChanges"><div class="changes-inner" id="changesInner"></div></div>' +
+    '</div>';
+
+  const oldCol = document.getElementById("pdfOld");
+  const newCol = document.getElementById("pdfNew");
+  const changesCol = document.getElementById("pdfChanges");
+  const changesInner = document.getElementById("changesInner");
+
+  const oldLines = await renderPdfColumn(oldDoc.pdf, oldCol);
+  const newLines = await renderPdfColumn(newDoc.pdf, newCol);
+
+  // Line-level diff between the two documents.
+  const diff = Diff.diffArrays(oldLines.map(l => normTxt(l.text)), newLines.map(l => normTxt(l.text)));
+  const anchors = [];
+  const changes = [];
+  let oi = 0, ni = 0, added = 0, removed = 0, changed = 0;
+  let lastNewY = 0, lastOldY = 0, anchorTick = 0;
+
+  for (let i = 0; i < diff.length; i++){
+    const part = diff[i];
+    const count = part.count != null ? part.count : part.value.length;
+
+    if (!part.added && !part.removed){
+      for (let k = 0; k < count; k++){
+        const ol = oldLines[oi], nl = newLines[ni];
+        lastOldY = ol.gY; lastNewY = nl.gY;
+        if ((anchorTick++ % 3) === 0) anchors.push({ old: ol.gY, new: nl.gY });
+        oi++; ni++;
+      }
+    } else if (part.removed){
+      const next = diff[i+1];
+      const addCount = (next && next.added) ? (next.count != null ? next.count : next.value.length) : 0;
+      const remLines = oldLines.slice(oi, oi + count);
+      const addLines = newLines.slice(ni, ni + addCount);
+      remLines.forEach(l => addHighlight(l, "del"));
+      addLines.forEach(l => addHighlight(l, "add"));
+
+      const type = (count && addCount) ? "change" : "del";
+      const oldY = remLines.length ? remLines[0].gY : lastOldY;
+      const newY = addLines.length ? addLines[0].gY : lastNewY;
+      changes.push({
+        type, oldY, newY,
+        oldText: remLines.map(l => l.text).join(" "),
+        newText: addLines.map(l => l.text).join(" "),
+        rects: remLines.concat(addLines),
+      });
+      if (type === "change") changed++; else removed++;
+
+      oi += count; ni += addCount;
+      if (next && next.added) i++;
+    } else { // added only
+      const addLines = newLines.slice(ni, ni + count);
+      addLines.forEach(l => addHighlight(l, "add"));
+      changes.push({
+        type:"add", oldY:lastOldY, newY: addLines.length ? addLines[0].gY : lastNewY,
+        oldText:"", newText: addLines.map(l => l.text).join(" "), rects: addLines,
+      });
+      added++;
+      ni += count;
+    }
+  }
+
+  // Build the change list, vertically aligned to the NEW document's content.
+  changesInner.style.height = newCol.scrollHeight + "px";
+  if (!changes.length){
+    changesInner.innerHTML = '<div class="changes-empty">No text differences found.</div>';
+  } else {
+    let lastTop = -1e9;
+    for (const c of changes){
+      const el = document.createElement("div");
+      el.className = "change-entry " + c.type;
+      let top = Math.max(0, c.newY - 2);
+      if (top < lastTop + 40) top = lastTop + 40; // avoid overlap, keep order
+      lastTop = top;
+      el.style.top = top + "px";
+      const label = c.type === "add" ? "Added" : c.type === "del" ? "Removed" : "Changed";
+      let snip;
+      if (c.type === "change") snip = "<del>" + escapeHtml(clip(c.oldText)) + "</del> <ins>" + escapeHtml(clip(c.newText)) + "</ins>";
+      else if (c.type === "add") snip = "<ins>" + escapeHtml(clip(c.newText)) + "</ins>";
+      else snip = "<del>" + escapeHtml(clip(c.oldText)) + "</del>";
+      el.innerHTML = '<span class="tag">' + label + '</span><span class="snippet">' + snip + '</span>';
+      el.addEventListener("click", () => {
+        oldCol.scrollTo({ top: Math.max(0, c.oldY - 40), behavior:"smooth" });
+        newCol.scrollTo({ top: Math.max(0, c.newY - 40), behavior:"smooth" });
+        c.rects.forEach(l => {
+          if (!l.hiEl) return;
+          l.hiEl.classList.remove("flash"); void l.hiEl.offsetWidth; l.hiEl.classList.add("flash");
+        });
+      });
+      changesInner.appendChild(el);
+    }
+  }
+
+  // Synchronized scrolling between the two columns + the change list.
+  let lock = false;
+  const release = () => requestAnimationFrame(() => { lock = false; });
+  oldCol.addEventListener("scroll", () => {
+    if (lock) return; lock = true;
+    newCol.scrollTop = mapY(oldCol.scrollTop, anchors, "old", "new");
+    changesCol.scrollTop = newCol.scrollTop;
+    release();
+  });
+  newCol.addEventListener("scroll", () => {
+    if (lock) return; lock = true;
+    oldCol.scrollTop = mapY(newCol.scrollTop, anchors, "new", "old");
+    changesCol.scrollTop = newCol.scrollTop;
+    release();
+  });
+
+  renderSummary({ added, removed, changed });
+}
+
+function clip(s, n){ s = (s || "").replace(/\s+/g, " ").trim(); n = n || 90; return s.length > n ? s.slice(0, n) + "…" : s; }
 
 function renderSummary(stats, isRedline){
   if (isRedline){
