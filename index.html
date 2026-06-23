@@ -51,15 +51,19 @@
     /* Lock the page to the viewport: only the comparison panel scrolls. */
     display:flex;
     flex-direction:column;
+    align-items:center;
     overflow:hidden;
   }
   header{
-    flex:none;
-    padding:22px 28px 14px;
+    flex:none;align-self:stretch;
+    padding:22px 28px 18px;
     border-bottom:1px solid var(--border);
+    text-align:center;
   }
-  header h1{margin:0;font-size:26px;font-weight:800;letter-spacing:-.5px;color:var(--text-strong);}
-  header p{margin:7px 0 0;color:var(--text-secondary);font-size:15px;line-height:1.5;max-width:680px;}
+  header h1{
+    margin:0;font-size:26px;font-weight:800;letter-spacing:-.5px;color:var(--text-strong);
+    display:inline-flex;align-items:center;gap:10px;
+  }
 
   .container{
     flex:1;min-height:0;
@@ -94,7 +98,9 @@
   }
   .dropzone .label.old{color:var(--danger);}
   .dropzone .label.new{color:var(--success-text);}
-  .dropzone .icon{font-size:32px;line-height:1;margin-bottom:10px;}
+  .dropzone .icon{display:flex;justify-content:center;margin-bottom:12px;}
+  .dropzone .icon svg{color:var(--muted);transition:color .15s;}
+  .dropzone:hover .icon svg{color:var(--text-secondary);}
   .dropzone .hint{font-size:14px;color:var(--muted);}
   .dropzone .btn-pick{
     display:inline-block;margin-top:14px;padding:9px 18px;
@@ -237,7 +243,6 @@
 <body>
 <header>
   <h1>📄 Document Compare</h1>
-  <p>Upload two versions of a document (Word, PDF, or text) and see exactly what changed.</p>
 </header>
 
 <div class="container">
@@ -247,7 +252,7 @@
       <button class="clear" title="Remove" data-clear="old">&times;</button>
       <div class="label old">Old version</div>
       <div class="content">
-        <div class="icon">⬆️</div>
+        <div class="icon"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4"/><path d="M7 9l5-5 5 5"/><path d="M5 20h14"/></svg></div>
         <div class="hint">Drag &amp; drop a file here</div>
         <div class="btn-pick">Choose file</div>
       </div>
@@ -258,7 +263,7 @@
       <button class="clear" title="Remove" data-clear="new">&times;</button>
       <div class="label new">Newer version</div>
       <div class="content">
-        <div class="icon">⬆️</div>
+        <div class="icon"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4"/><path d="M7 9l5-5 5 5"/><path d="M5 20h14"/></svg></div>
         <div class="hint">Drag &amp; drop a file here</div>
         <div class="btn-pick">Choose file</div>
       </div>
