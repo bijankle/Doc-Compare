@@ -11,38 +11,62 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.1.0/diff.min.js"></script>
 
 <style>
+  /* ===== Blurprint theme — Discord's feel, tuned for paper ===== */
   :root{
-    --bg:#0f172a;
-    --panel:#1e293b;
-    --panel-2:#273449;
-    --border:#334155;
-    --text:#e2e8f0;
-    --muted:#94a3b8;
-    --accent:#3b82f6;
-    --accent-hover:#2563eb;
-    --add-bg:#10331f;
-    --add-text:#86efac;
-    --del-bg:#3a1414;
-    --del-text:#fca5a5;
-    --redline-add:#f87171;   /* red for newly added text */
-    --redline-del:#f87171;   /* red strikethrough for removed text */
+    --bg:#ffffff;
+    --surface:#F8F9FB;
+    --surface-2:#F2F3F5;
+    --border:#E3E5E8;
+    --border-strong:#C7CAD1;
+
+    --text:#2E3035;
+    --text-strong:#1E1F22;
+    --text-secondary:#5C5E66;
+    --muted:#80848E;
+    --muted-2:#9A9DA5;
+
+    --accent:#5865F2;          /* Blurple */
+    --accent-deep:#4752C4;     /* Blurple Deep */
+    --accent-tint:#EEF0FE;     /* Blurple Tint */
+    --accent-tint-border:#E0E3FB;
+    --focus-ring:#E4E7FC;
+
+    --success:#3BA55C; --success-tint:#E7F4EC; --success-text:#2C7A47;
+    --warning:#E0A416; --warning-tint:#FBF1D8; --warning-text:#9A6F0C;
+    --danger:#D83C3E;  --danger-tint:#FCEDED;  --danger-text:#A82C2E; --danger-border:#EDB5B6;
+
+    --font:'Aptos','Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,sans-serif;
+    --mono:'Aptos Mono','Cascadia Code',ui-monospace,SFMono-Regular,Menlo,monospace;
   }
   *{box-sizing:border-box;}
+  ::selection{background:#D9DDFB;}
+  html,body{height:100%;}
   body{
     margin:0;
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-family:var(--font);
     background:var(--bg);
     color:var(--text);
     line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    /* Lock the page to the viewport: only the comparison panel scrolls. */
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
   }
   header{
-    padding:24px 28px 12px;
+    flex:none;
+    padding:22px 28px 14px;
     border-bottom:1px solid var(--border);
   }
-  header h1{margin:0;font-size:22px;font-weight:650;}
-  header p{margin:6px 0 0;color:var(--muted);font-size:14px;}
+  header h1{margin:0;font-size:26px;font-weight:800;letter-spacing:-.5px;color:var(--text-strong);}
+  header p{margin:7px 0 0;color:var(--text-secondary);font-size:15px;line-height:1.5;max-width:680px;}
 
-  .container{max-width:1200px;margin:0 auto;padding:24px 28px 60px;}
+  .container{
+    flex:1;min-height:0;
+    width:100%;max-width:1200px;margin:0 auto;padding:24px 28px 24px;
+    display:flex;flex-direction:column;
+  }
+  .uploads,.controls,.status,.summary{flex:none;}
 
   /* ---- Upload area ---- */
   .uploads{
@@ -53,129 +77,158 @@
   @media (max-width:760px){.uploads{grid-template-columns:1fr;}}
 
   .dropzone{
-    background:var(--panel);
-    border:2px dashed var(--border);
-    border-radius:14px;
-    padding:28px 20px;
+    background:var(--bg);
+    border:2px dashed var(--border-strong);
+    border-radius:16px;
+    padding:30px 22px;
     text-align:center;
     cursor:pointer;
     transition:border-color .15s, background .15s, transform .05s;
     position:relative;
   }
   .dropzone:hover{border-color:var(--accent);}
-  .dropzone.dragover{border-color:var(--accent);background:var(--panel-2);transform:scale(1.01);}
+  .dropzone.dragover{border-color:var(--accent);background:var(--accent-tint);transform:scale(1.01);}
   .dropzone .label{
-    font-size:13px;text-transform:uppercase;letter-spacing:.08em;
-    color:var(--muted);font-weight:600;margin-bottom:10px;
+    font-size:12px;text-transform:uppercase;letter-spacing:1.2px;
+    color:var(--muted);font-weight:700;margin-bottom:12px;
   }
-  .dropzone .label.old{color:#fca5a5;}
-  .dropzone .label.new{color:#86efac;}
-  .dropzone .icon{font-size:34px;line-height:1;margin-bottom:8px;}
-  .dropzone .hint{font-size:13px;color:var(--muted);}
+  .dropzone .label.old{color:var(--danger);}
+  .dropzone .label.new{color:var(--success-text);}
+  .dropzone .icon{font-size:32px;line-height:1;margin-bottom:10px;}
+  .dropzone .hint{font-size:14px;color:var(--muted);}
   .dropzone .btn-pick{
-    display:inline-block;margin-top:12px;padding:7px 16px;
-    background:var(--accent);color:#fff;border-radius:8px;font-size:13px;font-weight:600;
+    display:inline-block;margin-top:14px;padding:9px 18px;
+    background:var(--accent);color:#fff;border-radius:8px;font-size:14px;font-weight:600;
   }
-  .dropzone.filled{border-style:solid;border-color:var(--accent);}
+  .dropzone.filled{border-style:solid;border-color:var(--accent);background:var(--accent-tint);}
   .dropzone .filename{
-    margin-top:10px;font-size:14px;color:var(--text);font-weight:600;
+    margin-top:10px;font-size:15px;color:var(--text-strong);font-weight:700;
     word-break:break-all;
   }
-  .dropzone .filemeta{font-size:12px;color:var(--muted);margin-top:2px;}
+  .dropzone .filemeta{font-size:13px;color:var(--muted);margin-top:3px;}
   .dropzone .clear{
     position:absolute;top:10px;right:12px;font-size:18px;color:var(--muted);
-    background:none;border:none;cursor:pointer;display:none;
+    background:none;border:none;cursor:pointer;display:none;line-height:1;
   }
   .dropzone.filled .clear{display:block;}
-  .dropzone.filled .clear:hover{color:var(--text);}
+  .dropzone.filled .clear:hover{color:var(--text-strong);}
   input[type=file]{display:none;}
 
   /* ---- Controls ---- */
   .controls{
     display:flex;align-items:center;justify-content:center;gap:24px;
-    margin:26px 0 8px;flex-wrap:wrap;
+    margin:28px 0 8px;flex-wrap:wrap;
   }
   .toggle{
-    display:inline-flex;background:var(--panel);border:1px solid var(--border);
+    display:inline-flex;background:var(--surface-2);border:1px solid var(--border);
     border-radius:10px;padding:4px;
   }
   .toggle button{
-    border:none;background:none;color:var(--muted);
+    border:none;background:none;color:var(--text-secondary);
     padding:9px 18px;border-radius:7px;cursor:pointer;font-size:14px;font-weight:600;
-    transition:background .15s,color .15s;
+    font-family:inherit;transition:background .15s,color .15s,box-shadow .15s;
   }
+  .toggle button:hover:not(.active){color:var(--text-strong);}
   .toggle button.active{background:var(--accent);color:#fff;}
 
   .compare-btn{
-    padding:11px 30px;font-size:15px;font-weight:700;border:none;border-radius:10px;
-    background:var(--accent);color:#fff;cursor:pointer;transition:background .15s;
+    height:44px;padding:0 28px;font-size:15px;font-weight:600;border:none;border-radius:8px;
+    background:var(--accent);color:#fff;cursor:pointer;font-family:inherit;transition:background .15s;
   }
-  .compare-btn:hover{background:var(--accent-hover);}
-  .compare-btn:disabled{background:var(--border);color:var(--muted);cursor:not-allowed;}
+  .compare-btn:hover{background:var(--accent-deep);}
+  .compare-btn:disabled{background:var(--surface);color:var(--muted-2);border:1px solid var(--border);cursor:not-allowed;}
 
-  .status{text-align:center;color:var(--muted);font-size:13px;min-height:18px;margin-top:6px;}
-  .status.error{color:#fca5a5;}
+  .status{text-align:center;color:var(--muted);font-size:13px;min-height:18px;margin-top:8px;}
+  .status.error{color:var(--danger);}
 
   /* ---- Results ---- */
-  .results{margin-top:26px;display:none;}
-  .results.show{display:block;}
+  .results{margin-top:22px;display:none;min-height:0;flex:1;flex-direction:column;}
+  .results.show{display:flex;}
+  #output{flex:1;min-height:0;display:flex;flex-direction:column;}
 
   .summary{
-    display:flex;gap:18px;justify-content:center;margin-bottom:16px;font-size:13px;color:var(--muted);
+    display:flex;gap:14px;justify-content:center;margin-bottom:16px;font-size:13px;color:var(--text-secondary);
     flex-wrap:wrap;
   }
-  .summary .chip{background:var(--panel);border:1px solid var(--border);padding:6px 12px;border-radius:20px;}
-  .summary .chip b{color:var(--text);}
+  .summary .chip{background:var(--surface-2);border:1px solid var(--border);padding:6px 14px;border-radius:999px;font-weight:600;}
+  .summary .chip b{color:var(--text-strong);}
 
   /* Side-by-side */
   .sbs-wrap{
-    border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--panel);
+    flex:1;min-height:0;display:flex;flex-direction:column;
+    border:1px solid var(--border);border-radius:16px;overflow:hidden;background:var(--bg);
+    box-shadow:0 1px 2px rgba(30,31,34,.04);
   }
   .sbs-head{
+    flex:none;
     display:grid;grid-template-columns:1fr 1fr;
-    font-size:13px;font-weight:600;
+    font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;
   }
-  .sbs-head div{padding:10px 16px;border-bottom:1px solid var(--border);}
-  .sbs-head .h-old{color:#fca5a5;border-right:1px solid var(--border);}
-  .sbs-head .h-new{color:#86efac;}
+  .sbs-head div{padding:12px 16px;border-bottom:1px solid var(--border);background:var(--surface);}
+  .sbs-head .h-old{color:var(--danger);border-right:1px solid var(--border);}
+  .sbs-head .h-new{color:var(--success-text);}
 
-  .sbs-body{max-height:70vh;overflow:auto;}
+  /* The ONLY scroll container for side-by-side. */
+  .sbs-body{flex:1;min-height:0;overflow:auto;}
   table.diff{border-collapse:collapse;width:100%;table-layout:fixed;}
   table.diff td{
-    width:50%;vertical-align:top;padding:3px 16px;
-    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-    font-size:13.5px;line-height:1.55;white-space:pre-wrap;word-break:break-word;
-    border-bottom:1px solid rgba(51,65,85,.4);
+    width:50%;vertical-align:top;padding:5px 18px;
+    font-family:var(--font);
+    font-size:14.5px;line-height:1.5;word-break:break-word;
+    color:var(--text);
+    border-bottom:1px solid var(--surface-2);
   }
   table.diff td.left{border-right:1px solid var(--border);}
-  td.row-del{background:var(--del-bg);}
-  td.row-add{background:var(--add-bg);}
-  td.row-empty{background:rgba(0,0,0,.15);}
-  table.diff td .w-del{background:rgba(248,113,113,.28);color:#fecaca;border-radius:2px;}
-  table.diff td .w-add{background:rgba(74,222,128,.25);color:#bbf7d0;border-radius:2px;}
+  td.row-del{background:var(--danger-tint);}
+  td.row-add{background:var(--success-tint);}
+  td.row-empty{background:var(--surface);}
+  .w-del{background:rgba(216,60,62,.16);color:var(--danger-text);border-radius:3px;}
+  .w-add{background:rgba(59,165,92,.18);color:var(--success-text);border-radius:3px;}
+
+  /* ---- Rich document formatting (shared by both views) ---- */
+  .docview h1,.docview h2,.docview h3,.docview h4,.docview h5,.docview h6{
+    margin:.25em 0;line-height:1.25;color:var(--text-strong);font-weight:700;
+  }
+  .docview h1{font-size:1.7em;font-weight:800;}
+  .docview h2{font-size:1.4em;}
+  .docview h3{font-size:1.18em;}
+  .docview h4{font-size:1.05em;}
+  .docview p{margin:.15em 0;}
+  .docview strong,.docview b{font-weight:700;}
+  .docview em,.docview i{font-style:italic;}
+  .docview a{color:var(--accent);text-decoration:none;}
+  .docview .b-li{display:flex;gap:8px;align-items:flex-start;margin:.1em 0;}
+  .docview .b-li .bullet{color:var(--accent);font-weight:700;flex:none;line-height:1.5;}
+  .docview table{border-collapse:collapse;width:100%;font-size:.92em;margin:.3em 0;}
+  .docview th,.docview td{border:1px solid var(--border);padding:4px 8px;text-align:left;vertical-align:top;}
+  .docview th{background:var(--surface-2);font-weight:700;}
+  .docview img{max-width:100%;}
 
   /* Redline */
   .redline-wrap{
-    border:1px solid var(--border);border-radius:12px;background:#fdfdfb;color:#1a1a1a;
-    padding:34px 42px;max-height:72vh;overflow:auto;
-    font-family:Georgia,"Times New Roman",serif;font-size:16px;line-height:1.7;
-    white-space:pre-wrap;word-break:break-word;
+    flex:1;min-height:0;overflow:auto;
+    border:1px solid var(--border);border-radius:16px;background:var(--bg);color:var(--text);
+    padding:36px 48px;
+    box-shadow:0 1px 2px rgba(30,31,34,.04);
+    font-family:var(--font);font-size:16px;line-height:1.7;
+    word-break:break-word;
   }
+  .redline-legend{flex:none;}
   .redline-wrap ins{
-    color:var(--redline-add);text-decoration:underline;text-decoration-color:var(--redline-add);
-    background:rgba(248,113,113,.08);
+    color:var(--danger);text-decoration:underline;text-decoration-color:var(--danger);
+    background:var(--danger-tint);
   }
   .redline-wrap del{
-    color:var(--redline-del);text-decoration:line-through;text-decoration-color:var(--redline-del);
-    background:rgba(248,113,113,.06);
+    color:var(--danger);text-decoration:line-through;text-decoration-color:var(--danger);
+    background:rgba(216,60,62,.06);
   }
-  .redline-legend{display:flex;gap:20px;justify-content:center;margin-bottom:14px;font-size:13px;color:var(--muted);}
-  .redline-legend ins{color:var(--redline-add);text-decoration:underline;}
-  .redline-legend del{color:var(--redline-del);text-decoration:line-through;}
+  .redline-legend{display:flex;gap:20px;justify-content:center;margin-bottom:16px;font-size:13px;color:var(--text-secondary);}
+  .redline-legend ins{color:var(--danger);text-decoration:underline;}
+  .redline-legend del{color:var(--danger);text-decoration:line-through;}
 
   .spinner{
-    display:inline-block;width:14px;height:14px;border:2px solid var(--muted);
-    border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;
+    display:inline-block;width:14px;height:14px;border:2px solid var(--accent-tint-border);
+    border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;
     vertical-align:-2px;margin-right:6px;
   }
   @keyframes spin{to{transform:rotate(360deg);}}
@@ -272,15 +325,21 @@ function readAsText(file){
   });
 }
 
-async function extractText(file){
+/* A "block" preserves a piece of the document's formatting:
+     { openTag, closeTag, inner, text, cmp }
+   - openTag/closeTag + inner  → the fully-formatted rendering (headings, bold, lists…)
+   - text  → plain text of the block (used for word-level diffing)
+   - cmp   → normalized text used to match blocks between the two documents     */
+
+async function extractBlocks(file){
   const name = (file.name || "").toLowerCase();
   const ext = name.slice(name.lastIndexOf(".") + 1);
 
   if (ext === "docx"){
     if (!window.mammoth) throw new Error("Word parser failed to load (check your connection).");
     const buf = await readAsArrayBuffer(file);
-    const result = await mammoth.extractRawText({ arrayBuffer: buf });
-    return result.value;
+    const result = await mammoth.convertToHtml({ arrayBuffer: buf });
+    return blocksFromHtml(result.value);
   }
 
   if (ext === "doc"){
@@ -290,37 +349,108 @@ async function extractText(file){
   if (ext === "pdf"){
     if (!window.pdfjsLib) throw new Error("PDF parser failed to load (check your connection).");
     const buf = await readAsArrayBuffer(file);
-    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
-    let out = [];
-    for (let i = 1; i <= pdf.numPages; i++){
-      const page = await pdf.getPage(i);
-      const content = await page.getTextContent();
-      // Reconstruct lines using the y-position of each text item.
-      let lastY = null, line = "";
-      const lines = [];
-      for (const item of content.items){
-        const y = item.transform[5];
-        if (lastY !== null && Math.abs(y - lastY) > 2){
-          lines.push(line);
-          line = "";
-        }
-        line += item.str;
-        lastY = y;
-      }
-      if (line) lines.push(line);
-      out.push(lines.join("\n"));
-    }
-    return out.join("\n\n");
+    return await blocksFromPdf(buf);
   }
 
   if (ext === "html" || ext === "htm"){
     const raw = await readAsText(file);
-    const doc = new DOMParser().parseFromString(raw, "text/html");
-    return (doc.body ? doc.body.innerText : doc.documentElement.innerText) || "";
+    return blocksFromHtml(raw);
   }
 
-  // txt, md, csv, rtf-ish, and everything else: read as plain text.
-  return await readAsText(file);
+  // txt, md, csv and everything else: plain text split into paragraphs.
+  const text = await readAsText(file);
+  return blocksFromPlainText(text);
+}
+
+function mkBlock(openTag, closeTag, inner, text){
+  return { openTag, closeTag, inner, text, cmp: (text || "").replace(/\s+/g, " ").trim() };
+}
+
+/* Build formatted blocks from an HTML string (Word via mammoth, or .html files). */
+function blocksFromHtml(htmlString){
+  const doc = new DOMParser().parseFromString(htmlString, "text/html");
+  const body = doc.body;
+  const blocks = [];
+  if (!body) return blocksFromPlainText(htmlString);
+
+  for (const node of body.children){
+    const tag = node.tagName.toLowerCase();
+    if (tag === "ul" || tag === "ol"){
+      for (const li of node.querySelectorAll(":scope > li")){
+        const text = (li.textContent || "").replace(/\s+/g, " ").trim();
+        if (!text) continue;
+        blocks.push(mkBlock(
+          '<div class="b-li"><span class="bullet">•</span><span>', "</span></div>",
+          li.innerHTML, text));
+      }
+    } else if (tag === "table"){
+      const text = (node.textContent || "").replace(/\s+/g, " ").trim();
+      if (text) blocks.push(mkBlock("", "", node.outerHTML, text));
+    } else {
+      const text = (node.textContent || "").replace(/\s+/g, " ").trim();
+      if (!text) continue;
+      blocks.push(mkBlock("<" + tag + ">", "</" + tag + ">", node.innerHTML, text));
+    }
+  }
+  return blocks.length ? blocks : blocksFromPlainText(body.textContent || "");
+}
+
+function blocksFromPlainText(text){
+  const norm = (text || "").replace(/\r\n?/g, "\n");
+  const paras = norm.split(/\n[ \t]*\n/);
+  const blocks = [];
+  for (const p of paras){
+    const t = p.replace(/[ \t]+\n/g, "\n").trim();
+    if (!t) continue;
+    blocks.push(mkBlock("<p>", "</p>", escapeHtml(t).replace(/\n/g, "<br>"), t));
+  }
+  return blocks;
+}
+
+/* Build blocks from a PDF — one block per visual line, preserving relative font
+   size and bold so headings stay big/bold and the layout reads like the file. */
+async function blocksFromPdf(buf){
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const rawLines = [];
+
+  for (let i = 1; i <= pdf.numPages; i++){
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    let lastY = null, text = "", size = 0, boldVotes = 0, items = 0;
+
+    const flush = () => {
+      const t = text.replace(/\s+/g, " ").trim();
+      if (t) rawLines.push({ text: t, size: Math.round(size), bold: boldVotes > items / 2 });
+      text = ""; size = 0; boldVotes = 0; items = 0;
+    };
+
+    for (const it of content.items){
+      const y = it.transform[5];
+      if (lastY !== null && Math.abs(y - lastY) > 2) flush();
+      text += it.str;
+      const h = it.height || Math.hypot(it.transform[2], it.transform[3]) || 12;
+      if (h > size) size = h;
+      if (/bold|black|heavy|semibold/i.test(it.fontName || "")) boldVotes++;
+      items++;
+      lastY = y;
+    }
+    flush();
+    lastY = null;
+  }
+
+  if (!rawLines.length) return [];
+
+  // Find the body font size (the most common one) to scale everything against.
+  const freq = {};
+  for (const l of rawLines) freq[l.size] = (freq[l.size] || 0) + 1;
+  const bodySize = +Object.keys(freq).reduce((a, b) => freq[b] > freq[a] ? b : a) || 12;
+
+  return rawLines.map(l => {
+    const px = Math.max(11, Math.min(30, Math.round((l.size / bodySize) * 15)));
+    const weight = l.bold || l.size >= bodySize * 1.15 ? 700 : 400;
+    const style = "font-size:" + px + "px;font-weight:" + weight + ";";
+    return mkBlock('<div style="' + style + '">', "</div>", escapeHtml(l.text), l.text);
+  });
 }
 
 /* ---------- Upload wiring ---------- */
@@ -352,7 +482,7 @@ function renderDropzone(which){
     info.innerHTML =
       '<div class="filename">📑 ' + escapeHtml(doc.name) + '</div>' +
       '<div class="filemeta">' + fmtSize(doc.size) +
-        ' · ' + doc.text.length.toLocaleString() + ' chars</div>';
+        ' · ' + doc.charCount.toLocaleString() + ' chars</div>';
     dz.appendChild(info);
   } else {
     dz.classList.remove("filled");
@@ -366,8 +496,10 @@ async function handleFile(which, file){
   els.status.classList.remove("error");
   els.status.innerHTML = '<span class="spinner"></span>Reading "' + escapeHtml(file.name) + '"…';
   try {
-    const text = await extractText(file);
-    state.docs[which] = { name: file.name, size: file.size, text };
+    const blocks = await extractBlocks(file);
+    if (!blocks.length) throw new Error("No readable text found in " + file.name + ".");
+    const charCount = blocks.reduce((n, b) => n + b.text.length, 0);
+    state.docs[which] = { name: file.name, size: file.size, blocks, charCount };
     renderDropzone(which);
     setStatus("");
   } catch (err){
@@ -428,16 +560,15 @@ els.compare.addEventListener("click", runCompare);
 function runCompare(){
   if (!(state.docs.old && state.docs.new)) return;
   setStatus("");
-  const oldText = state.docs.old.text;
-  const newText = state.docs.new.text;
+  const oldB = state.docs.old.blocks;
+  const newB = state.docs.new.blocks;
 
   if (state.mode === "sbs"){
-    renderSideBySide(oldText, newText);
+    renderSideBySide(oldB, newB);
   } else {
-    renderRedline(oldText, newText);
+    renderRedline(oldB, newB);
   }
   els.results.classList.add("show");
-  els.results.scrollIntoView({ behavior:"smooth", block:"start" });
 }
 
 /* ---------- Helpers ---------- */
@@ -446,88 +577,76 @@ function escapeHtml(s){
   return String(s)
     .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
-function normalize(text){
-  // Normalize line endings; trim trailing whitespace per line.
-  return text.replace(/\r\n?/g, "\n").replace(/[ \t]+\n/g, "\n");
-}
+// The fully-formatted rendering of a block.
+function fullBlock(b){ return b.openTag + b.inner + b.closeTag; }
 
-/* Inline word-level diff between two single strings → {leftHtml, rightHtml} */
-function inlineDiff(oldLine, newLine){
-  const parts = Diff.diffWordsWithSpace(oldLine, newLine);
+// Word-level diff of two blocks' text, wrapped back in each block's formatting.
+function inlineBlockDiff(ob, nb){
+  const parts = Diff.diffWordsWithSpace(ob.text, nb.text);
   let left = "", right = "";
   for (const p of parts){
     const html = escapeHtml(p.value);
-    if (p.added){
-      right += '<span class="w-add">' + html + '</span>';
-    } else if (p.removed){
-      left  += '<span class="w-del">' + html + '</span>';
-    } else {
-      left += html; right += html;
-    }
+    if (p.added)       right += '<span class="w-add">' + html + '</span>';
+    else if (p.removed) left += '<span class="w-del">' + html + '</span>';
+    else { left += html; right += html; }
   }
-  return { left, right };
+  return {
+    left:  ob.openTag + left  + ob.closeTag,
+    right: nb.openTag + right + nb.closeTag,
+  };
 }
 
 /* ---------- Side-by-side renderer ----------
-   Uses a single two-column table so matching content is guaranteed to sit
-   on the same horizontal row — scrolling keeps both sides aligned.        */
+   Diffs the document block-by-block. A single two-column table guarantees
+   matching content sits on the same row, and each cell keeps the block's
+   original formatting (headings, bold, lists, font sizes…).               */
 
-function renderSideBySide(oldText, newText){
-  const a = normalize(oldText);
-  const b = normalize(newText);
-  const parts = Diff.diffLines(a, b);
-
-  const rows = [];          // each: {left, right, lClass, rClass}
+function renderSideBySide(oldB, newB){
+  const diff = Diff.diffArrays(oldB.map(b => b.cmp), newB.map(b => b.cmp));
+  const rows = [];
   let stats = { added:0, removed:0, changed:0 };
+  let oi = 0, ni = 0;
 
-  // Split parts into lines, pairing removed+added blocks for inline highlighting.
-  const toLines = v => {
-    const lines = v.split("\n");
-    if (lines.length && lines[lines.length-1] === "") lines.pop();
-    return lines;
-  };
+  for (let i = 0; i < diff.length; i++){
+    const part = diff[i];
+    const count = part.count != null ? part.count : part.value.length;
 
-  for (let i = 0; i < parts.length; i++){
-    const part = parts[i];
     if (!part.added && !part.removed){
-      // Equal block
-      for (const ln of toLines(part.value)){
-        rows.push({ left:escapeHtml(ln), right:escapeHtml(ln), lClass:"", rClass:"" });
+      for (let k = 0; k < count; k++){
+        rows.push({ left:fullBlock(oldB[oi]), right:fullBlock(newB[ni]), lCls:"", rCls:"" });
+        oi++; ni++;
       }
     } else if (part.removed){
-      const next = parts[i+1];
-      const delLines = toLines(part.value);
+      const next = diff[i+1];
       if (next && next.added){
-        // Paired change: line up removed vs added, inline-diff matching lines.
-        const addLines = toLines(next.value);
-        const n = Math.max(delLines.length, addLines.length);
+        const addCount = next.count != null ? next.count : next.value.length;
+        const n = Math.max(count, addCount);
         for (let k = 0; k < n; k++){
-          const o = delLines[k], nw = addLines[k];
-          if (o !== undefined && nw !== undefined){
-            const d = inlineDiff(o, nw);
-            rows.push({ left:d.left, right:d.right, lClass:"row-del", rClass:"row-add" });
+          const ob = k < count ? oldB[oi+k] : null;
+          const nb = k < addCount ? newB[ni+k] : null;
+          if (ob && nb){
+            const d = inlineBlockDiff(ob, nb);
+            rows.push({ left:d.left, right:d.right, lCls:"row-del", rCls:"row-add" });
             stats.changed++;
-          } else if (o !== undefined){
-            rows.push({ left:escapeHtml(o), right:"", lClass:"row-del", rClass:"row-empty" });
+          } else if (ob){
+            rows.push({ left:fullBlock(ob), right:"", lCls:"row-del", rCls:"row-empty" });
             stats.removed++;
           } else {
-            rows.push({ left:"", right:escapeHtml(nw), lClass:"row-empty", rClass:"row-add" });
+            rows.push({ left:"", right:fullBlock(nb), lCls:"row-empty", rCls:"row-add" });
             stats.added++;
           }
         }
-        i++; // consume the paired "added" part
+        oi += count; ni += addCount; i++; // consume paired "added" part
       } else {
-        // Pure removal
-        for (const ln of delLines){
-          rows.push({ left:escapeHtml(ln), right:"", lClass:"row-del", rClass:"row-empty" });
-          stats.removed++;
+        for (let k = 0; k < count; k++){
+          rows.push({ left:fullBlock(oldB[oi]), right:"", lCls:"row-del", rCls:"row-empty" });
+          oi++; stats.removed++;
         }
       }
-    } else if (part.added){
-      // Pure addition (not preceded by a removal)
-      for (const ln of toLines(part.value)){
-        rows.push({ left:"", right:escapeHtml(ln), lClass:"row-empty", rClass:"row-add" });
-        stats.added++;
+    } else { // added only
+      for (let k = 0; k < count; k++){
+        rows.push({ left:"", right:fullBlock(newB[ni]), lCls:"row-empty", rCls:"row-add" });
+        ni++; stats.added++;
       }
     }
   }
@@ -536,8 +655,8 @@ function renderSideBySide(oldText, newText){
   for (const r of rows){
     bodyHtml +=
       '<tr>' +
-        '<td class="left ' + r.lClass + '">' + (r.left || "&nbsp;") + '</td>' +
-        '<td class="right ' + r.rClass + '">' + (r.right || "&nbsp;") + '</td>' +
+        '<td class="left ' + r.lCls + '">' + (r.left || "&nbsp;") + '</td>' +
+        '<td class="right ' + r.rCls + '">' + (r.right || "&nbsp;") + '</td>' +
       '</tr>';
   }
 
@@ -548,26 +667,63 @@ function renderSideBySide(oldText, newText){
         '<div class="h-old">Old · ' + escapeHtml(state.docs.old.name) + '</div>' +
         '<div class="h-new">New · ' + escapeHtml(state.docs.new.name) + '</div>' +
       '</div>' +
-      '<div class="sbs-body"><table class="diff"><tbody>' + bodyHtml + '</tbody></table></div>' +
+      '<div class="sbs-body docview"><table class="diff"><tbody>' + bodyHtml + '</tbody></table></div>' +
     '</div>';
 }
 
 /* ---------- Redline renderer ----------
-   Word-level diff over the whole document:
-     added (in new, not old)  → red, underlined  (<ins>)
-     removed (in old, not new)→ red, strikethrough (<del>)                  */
+   Renders the new document with its formatting, then overlays:
+     added text   (in new, not old) → red, underlined   (<ins>)
+     removed text (in old, not new) → red, strikethrough (<del>)            */
 
-function renderRedline(oldText, newText){
-  const a = normalize(oldText);
-  const b = normalize(newText);
-  const parts = Diff.diffWordsWithSpace(a, b);
-
+function renderRedline(oldB, newB){
+  const diff = Diff.diffArrays(oldB.map(b => b.cmp), newB.map(b => b.cmp));
   let html = "", added = 0, removed = 0;
-  for (const p of parts){
-    const safe = escapeHtml(p.value);
-    if (p.added){ html += "<ins>" + safe + "</ins>"; if (p.value.trim()) added++; }
-    else if (p.removed){ html += "<del>" + safe + "</del>"; if (p.value.trim()) removed++; }
-    else { html += safe; }
+  let oi = 0, ni = 0;
+
+  const wordRedline = (ob, nb) => {
+    const parts = Diff.diffWordsWithSpace(ob.text, nb.text);
+    let inner = "";
+    for (const p of parts){
+      const safe = escapeHtml(p.value);
+      if (p.added){ inner += "<ins>" + safe + "</ins>"; if (p.value.trim()) added++; }
+      else if (p.removed){ inner += "<del>" + safe + "</del>"; if (p.value.trim()) removed++; }
+      else inner += safe;
+    }
+    return nb.openTag + inner + nb.closeTag;
+  };
+
+  for (let i = 0; i < diff.length; i++){
+    const part = diff[i];
+    const count = part.count != null ? part.count : part.value.length;
+
+    if (!part.added && !part.removed){
+      for (let k = 0; k < count; k++){ html += fullBlock(newB[ni]); oi++; ni++; }
+    } else if (part.removed){
+      const next = diff[i+1];
+      if (next && next.added){
+        const addCount = next.count != null ? next.count : next.value.length;
+        const n = Math.max(count, addCount);
+        for (let k = 0; k < n; k++){
+          const ob = k < count ? oldB[oi+k] : null;
+          const nb = k < addCount ? newB[ni+k] : null;
+          if (ob && nb) html += wordRedline(ob, nb);
+          else if (ob){ html += ob.openTag + "<del>" + escapeHtml(ob.text) + "</del>" + ob.closeTag; removed++; }
+          else { html += nb.openTag + "<ins>" + escapeHtml(nb.text) + "</ins>" + nb.closeTag; added++; }
+        }
+        oi += count; ni += addCount; i++;
+      } else {
+        for (let k = 0; k < count; k++){
+          html += oldB[oi].openTag + "<del>" + escapeHtml(oldB[oi].text) + "</del>" + oldB[oi].closeTag;
+          oi++; removed++;
+        }
+      }
+    } else { // added only
+      for (let k = 0; k < count; k++){
+        html += newB[ni].openTag + "<ins>" + escapeHtml(newB[ni].text) + "</ins>" + newB[ni].closeTag;
+        ni++; added++;
+      }
+    }
   }
 
   renderSummary({ added, removed, changed:0 }, true);
@@ -576,7 +732,7 @@ function renderRedline(oldText, newText){
       '<span><ins>underlined red</ins> = added in new version</span>' +
       '<span><del>struck-through red</del> = removed from old version</span>' +
     '</div>' +
-    '<div class="redline-wrap">' + html + '</div>';
+    '<div class="redline-wrap docview">' + html + '</div>';
 }
 
 function renderSummary(stats, isRedline){
