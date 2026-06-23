@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Document Compare</title>
+
+<!-- Parsing + diffing libraries (loaded from CDN) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.1.0/diff.min.js"></script>
+
+<style>
+  :root{
+    --bg:#0f172a;
+    --panel:#1e293b;
+    --panel-2:#273449;
+    --border:#334155;
+    --text:#e2e8f0;
+    --muted:#94a3b8;
+    --accent:#3b82f6;
+    --accent-hover:#2563eb;
+    --add-bg:#10331f;
+    --add-text:#86efac;
+    --del-bg:#3a1414;
+    --del-text:#fca5a5;
+    --redline-add:#f87171;   /* red for newly added text */
+    --redline-del:#f87171;   /* red strikethrough for removed text */
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    line-height:1.5;
+  }
+  header{
+    padding:24px 28px 12px;
+    border-bottom:1px solid var(--border);
+  }
+  header h1{margin:0;font-size:22px;font-weight:650;}
+  header p{margin:6px 0 0;color:var(--muted);font-size:14px;}
+
+  .container{max-width:1200px;margin:0 auto;padding:24px 28px 60px;}
+
+  /* ---- Upload area ---- */
+  .uploads{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:20px;
+  }
+  @media (max-width:760px){.uploads{grid-template-columns:1fr;}}
+
+  .dropzone{
+    background:var(--panel);
+    border:2px dashed var(--border);
+    border-radius:14px;
+    padding:28px 20px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .15s, background .15s, transform .05s;
+    position:relative;
+  }
+  .dropzone:hover{border-color:var(--accent);}
+  .dropzone.dragover{border-color:var(--accent);background:var(--panel-2);transform:scale(1.01);}
+  .dropzone .label{
+    font-size:13px;text-transform:uppercase;letter-spacing:.08em;
+    color:var(--muted);font-weight:600;margin-bottom:10px;
+  }
+  .dropzone .label.old{color:#fca5a5;}
+  .dropzone .label.new{color:#86efac;}
+  .dropzone .icon{font-size:34px;line-height:1;margin-bottom:8px;}
+  .dropzone .hint{font-size:13px;color:var(--muted);}
+  .dropzone .btn-pick{
+    display:inline-block;margin-top:12px;padding:7px 16px;
+    background:var(--accent);color:#fff;border-radius:8px;font-size:13px;font-weight:600;
+  }
+  .dropzone.filled{border-style:solid;border-color:var(--accent);}
+  .dropzone .filename{
+    margin-top:10px;font-size:14px;color:var(--text);font-weight:600;
+    word-break:break-all;
+  }
+  .dropzone .filemeta{font-size:12px;color:var(--muted);margin-top:2px;}
+  .dropzone .clear{
+    position:absolute;top:10px;right:12px;font-size:18px;color:var(--muted);
+    background:none;border:none;cursor:pointer;display:none;
+  }
+  .dropzone.filled .clear{display:block;}
+  .dropzone.filled .clear:hover{color:var(--text);}
+  input[type=file]{display:none;}
+
+  /* ---- Controls ---- */
+  .controls{
+    display:flex;align-items:center;justify-content:center;gap:24px;
+    margin:26px 0 8px;flex-wrap:wrap;
+  }
+  .toggle{
+    display:inline-flex;background:var(--panel);border:1px solid var(--border);
+    border-radius:10px;padding:4px;
+  }
+  .toggle button{
+    border:none;background:none;color:var(--muted);
+    padding:9px 18px;border-radius:7px;cursor:pointer;font-size:14px;font-weight:600;
+    transition:background .15s,color .15s;
+  }
+  .toggle button.active{background:var(--accent);color:#fff;}
+
+  .compare-btn{
+    padding:11px 30px;font-size:15px;font-weight:700;border:none;border-radius:10px;
+    background:var(--accent);color:#fff;cursor:pointer;transition:background .15s;
+  }
+  .compare-btn:hover{background:var(--accent-hover);}
+  .compare-btn:disabled{background:var(--border);color:var(--muted);cursor:not-allowed;}
+
+  .status{text-align:center;color:var(--muted);font-size:13px;min-height:18px;margin-top:6px;}
+  .status.error{color:#fca5a5;}
+
+  /* ---- Results ---- */
+  .results{margin-top:26px;display:none;}
+  .results.show{display:block;}
+
+  .summary{
+    display:flex;gap:18px;justify-content:center;margin-bottom:16px;font-size:13px;color:var(--muted);
+    flex-wrap:wrap;
+  }
+  .summary .chip{background:var(--panel);border:1px solid var(--border);padding:6px 12px;border-radius:20px;}
+  .summary .chip b{color:var(--text);}
+
+  /* Side-by-side */
+  .sbs-wrap{
+    border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--panel);
+  }
+  .sbs-head{
+    display:grid;grid-template-columns:1fr 1fr;
+    font-size:13px;font-weight:600;
+  }
+  .sbs-head div{padding:10px 16px;border-bottom:1px solid var(--border);}
+  .sbs-head .h-old{color:#fca5a5;border-right:1px solid var(--border);}
+  .sbs-head .h-new{color:#86efac;}
+
+  .sbs-body{max-height:70vh;overflow:auto;}
+  table.diff{border-collapse:collapse;width:100%;table-layout:fixed;}
+  table.diff td{
+    width:50%;vertical-align:top;padding:3px 16px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:13.5px;line-height:1.55;white-space:pre-wrap;word-break:break-word;
+    border-bottom:1px solid rgba(51,65,85,.4);
+  }
+  table.diff td.left{border-right:1px solid var(--border);}
+  td.row-del{background:var(--del-bg);}
+  td.row-add{background:var(--add-bg);}
+  td.row-empty{background:rgba(0,0,0,.15);}
+  table.diff td .w-del{background:rgba(248,113,113,.28);color:#fecaca;border-radius:2px;}
+  table.diff td .w-add{background:rgba(74,222,128,.25);color:#bbf7d0;border-radius:2px;}
+
+  /* Redline */
+  .redline-wrap{
+    border:1px solid var(--border);border-radius:12px;background:#fdfdfb;color:#1a1a1a;
+    padding:34px 42px;max-height:72vh;overflow:auto;
+    font-family:Georgia,"Times New Roman",serif;font-size:16px;line-height:1.7;
+    white-space:pre-wrap;word-break:break-word;
+  }
+  .redline-wrap ins{
+    color:var(--redline-add);text-decoration:underline;text-decoration-color:var(--redline-add);
+    background:rgba(248,113,113,.08);
+  }
+  .redline-wrap del{
+    color:var(--redline-del);text-decoration:line-through;text-decoration-color:var(--redline-del);
+    background:rgba(248,113,113,.06);
+  }
+  .redline-legend{display:flex;gap:20px;justify-content:center;margin-bottom:14px;font-size:13px;color:var(--muted);}
+  .redline-legend ins{color:var(--redline-add);text-decoration:underline;}
+  .redline-legend del{color:var(--redline-del);text-decoration:line-through;}
+
+  .spinner{
+    display:inline-block;width:14px;height:14px;border:2px solid var(--muted);
+    border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;
+    vertical-align:-2px;margin-right:6px;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+<header>
+  <h1>📄 Document Compare</h1>
+  <p>Upload two versions of a document (Word, PDF, or text) and see exactly what changed.</p>
+</header>
+
+<div class="container">
+  <!-- Upload zones -->
+  <div class="uploads">
+    <div class="dropzone" id="dz-old" data-which="old">
+      <button class="clear" title="Remove" data-clear="old">&times;</button>
+      <div class="label old">Old version</div>
+      <div class="content">
+        <div class="icon">⬆️</div>
+        <div class="hint">Drag &amp; drop a file here</div>
+        <div class="btn-pick">Choose file</div>
+      </div>
+      <input type="file" id="file-old" accept=".txt,.md,.csv,.docx,.pdf,.rtf,.html,.htm,text/*" />
+    </div>
+
+    <div class="dropzone" id="dz-new" data-which="new">
+      <button class="clear" title="Remove" data-clear="new">&times;</button>
+      <div class="label new">Newer version</div>
+      <div class="content">
+        <div class="icon">⬆️</div>
+        <div class="hint">Drag &amp; drop a file here</div>
+        <div class="btn-pick">Choose file</div>
+      </div>
+      <input type="file" id="file-new" accept=".txt,.md,.csv,.docx,.pdf,.rtf,.html,.htm,text/*" />
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <div class="toggle" id="mode-toggle">
+      <button data-mode="sbs" class="active">Side-by-side</button>
+      <button data-mode="redline">Redline</button>
+    </div>
+    <button class="compare-btn" id="compare-btn" disabled>Compare</button>
+  </div>
+  <div class="status" id="status"></div>
+
+  <!-- Results -->
+  <div class="results" id="results">
+    <div class="summary" id="summary"></div>
+    <div id="output"></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   Document Compare — single-file tool
+   ============================================================ */
+
+if (window.pdfjsLib) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+}
+
+const state = {
+  mode: "sbs",
+  docs: { old: null, new: null }   // { name, size, text }
+};
+
+const els = {
+  status:  document.getElementById("status"),
+  results: document.getElementById("results"),
+  summary: document.getElementById("summary"),
+  output:  document.getElementById("output"),
+  compare: document.getElementById("compare-btn"),
+};
+
+/* ---------- File reading / text extraction ---------- */
+
+function readAsArrayBuffer(file){
+  return new Promise((res, rej)=>{
+    const r = new FileReader();
+    r.onload = ()=>res(r.result);
+    r.onerror = rej;
+    r.readAsArrayBuffer(file);
+  });
+}
+function readAsText(file){
+  return new Promise((res, rej)=>{
+    const r = new FileReader();
+    r.onload = ()=>res(r.result);
+    r.onerror = rej;
+    r.readAsText(file);
+  });
+}
+
+async function extractText(file){
+  const name = (file.name || "").toLowerCase();
+  const ext = name.slice(name.lastIndexOf(".") + 1);
+
+  if (ext === "docx"){
+    if (!window.mammoth) throw new Error("Word parser failed to load (check your connection).");
+    const buf = await readAsArrayBuffer(file);
+    const result = await mammoth.extractRawText({ arrayBuffer: buf });
+    return result.value;
+  }
+
+  if (ext === "doc"){
+    throw new Error("Legacy .doc files aren't supported — please save as .docx, PDF, or TXT.");
+  }
+
+  if (ext === "pdf"){
+    if (!window.pdfjsLib) throw new Error("PDF parser failed to load (check your connection).");
+    const buf = await readAsArrayBuffer(file);
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    let out = [];
+    for (let i = 1; i <= pdf.numPages; i++){
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      // Reconstruct lines using the y-position of each text item.
+      let lastY = null, line = "";
+      const lines = [];
+      for (const item of content.items){
+        const y = item.transform[5];
+        if (lastY !== null && Math.abs(y - lastY) > 2){
+          lines.push(line);
+          line = "";
+        }
+        line += item.str;
+        lastY = y;
+      }
+      if (line) lines.push(line);
+      out.push(lines.join("\n"));
+    }
+    return out.join("\n\n");
+  }
+
+  if (ext === "html" || ext === "htm"){
+    const raw = await readAsText(file);
+    const doc = new DOMParser().parseFromString(raw, "text/html");
+    return (doc.body ? doc.body.innerText : doc.documentElement.innerText) || "";
+  }
+
+  // txt, md, csv, rtf-ish, and everything else: read as plain text.
+  return await readAsText(file);
+}
+
+/* ---------- Upload wiring ---------- */
+
+function fmtSize(bytes){
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + " KB";
+  return (bytes/1024/1024).toFixed(1) + " MB";
+}
+
+function setStatus(msg, isError){
+  els.status.textContent = msg || "";
+  els.status.classList.toggle("error", !!isError);
+}
+
+function renderDropzone(which){
+  const dz = document.getElementById("dz-" + which);
+  const content = dz.querySelector(".content");
+  const doc = state.docs[which];
+  // Remove any previously-rendered file info
+  const old = dz.querySelector(".fileinfo");
+  if (old) old.remove();
+
+  if (doc){
+    dz.classList.add("filled");
+    content.style.display = "none";
+    const info = document.createElement("div");
+    info.className = "fileinfo";
+    info.innerHTML =
+      '<div class="filename">📑 ' + escapeHtml(doc.name) + '</div>' +
+      '<div class="filemeta">' + fmtSize(doc.size) +
+        ' · ' + doc.text.length.toLocaleString() + ' chars</div>';
+    dz.appendChild(info);
+  } else {
+    dz.classList.remove("filled");
+    content.style.display = "";
+  }
+  updateCompareEnabled();
+}
+
+async function handleFile(which, file){
+  if (!file) return;
+  els.status.classList.remove("error");
+  els.status.innerHTML = '<span class="spinner"></span>Reading "' + escapeHtml(file.name) + '"…';
+  try {
+    const text = await extractText(file);
+    state.docs[which] = { name: file.name, size: file.size, text };
+    renderDropzone(which);
+    setStatus("");
+  } catch (err){
+    console.error(err);
+    state.docs[which] = null;
+    renderDropzone(which);
+    setStatus(err.message || ("Could not read " + file.name), true);
+  }
+}
+
+function updateCompareEnabled(){
+  els.compare.disabled = !(state.docs.old && state.docs.new);
+}
+
+["old","new"].forEach(which=>{
+  const dz = document.getElementById("dz-" + which);
+  const input = document.getElementById("file-" + which);
+
+  dz.addEventListener("click", e=>{
+    if (e.target.closest("[data-clear]")) return;
+    input.click();
+  });
+  input.addEventListener("change", e=>{
+    if (e.target.files && e.target.files[0]) handleFile(which, e.target.files[0]);
+  });
+
+  dz.addEventListener("dragover", e=>{ e.preventDefault(); dz.classList.add("dragover"); });
+  dz.addEventListener("dragleave", e=>{ dz.classList.remove("dragover"); });
+  dz.addEventListener("drop", e=>{
+    e.preventDefault();
+    dz.classList.remove("dragover");
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) handleFile(which, e.dataTransfer.files[0]);
+  });
+
+  dz.querySelector("[data-clear]").addEventListener("click", e=>{
+    e.stopPropagation();
+    state.docs[which] = null;
+    input.value = "";
+    renderDropzone(which);
+  });
+});
+
+/* ---------- Mode toggle ---------- */
+
+document.getElementById("mode-toggle").addEventListener("click", e=>{
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  state.mode = btn.dataset.mode;
+  [...e.currentTarget.children].forEach(b=>b.classList.toggle("active", b===btn));
+  // If results are already shown, re-render in the new mode.
+  if (els.results.classList.contains("show")) runCompare();
+});
+
+/* ---------- Compare ---------- */
+
+els.compare.addEventListener("click", runCompare);
+
+function runCompare(){
+  if (!(state.docs.old && state.docs.new)) return;
+  setStatus("");
+  const oldText = state.docs.old.text;
+  const newText = state.docs.new.text;
+
+  if (state.mode === "sbs"){
+    renderSideBySide(oldText, newText);
+  } else {
+    renderRedline(oldText, newText);
+  }
+  els.results.classList.add("show");
+  els.results.scrollIntoView({ behavior:"smooth", block:"start" });
+}
+
+/* ---------- Helpers ---------- */
+
+function escapeHtml(s){
+  return String(s)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+function normalize(text){
+  // Normalize line endings; trim trailing whitespace per line.
+  return text.replace(/\r\n?/g, "\n").replace(/[ \t]+\n/g, "\n");
+}
+
+/* Inline word-level diff between two single strings → {leftHtml, rightHtml} */
+function inlineDiff(oldLine, newLine){
+  const parts = Diff.diffWordsWithSpace(oldLine, newLine);
+  let left = "", right = "";
+  for (const p of parts){
+    const html = escapeHtml(p.value);
+    if (p.added){
+      right += '<span class="w-add">' + html + '</span>';
+    } else if (p.removed){
+      left  += '<span class="w-del">' + html + '</span>';
+    } else {
+      left += html; right += html;
+    }
+  }
+  return { left, right };
+}
+
+/* ---------- Side-by-side renderer ----------
+   Uses a single two-column table so matching content is guaranteed to sit
+   on the same horizontal row — scrolling keeps both sides aligned.        */
+
+function renderSideBySide(oldText, newText){
+  const a = normalize(oldText);
+  const b = normalize(newText);
+  const parts = Diff.diffLines(a, b);
+
+  const rows = [];          // each: {left, right, lClass, rClass}
+  let stats = { added:0, removed:0, changed:0 };
+
+  // Split parts into lines, pairing removed+added blocks for inline highlighting.
+  const toLines = v => {
+    const lines = v.split("\n");
+    if (lines.length && lines[lines.length-1] === "") lines.pop();
+    return lines;
+  };
+
+  for (let i = 0; i < parts.length; i++){
+    const part = parts[i];
+    if (!part.added && !part.removed){
+      // Equal block
+      for (const ln of toLines(part.value)){
+        rows.push({ left:escapeHtml(ln), right:escapeHtml(ln), lClass:"", rClass:"" });
+      }
+    } else if (part.removed){
+      const next = parts[i+1];
+      const delLines = toLines(part.value);
+      if (next && next.added){
+        // Paired change: line up removed vs added, inline-diff matching lines.
+        const addLines = toLines(next.value);
+        const n = Math.max(delLines.length, addLines.length);
+        for (let k = 0; k < n; k++){
+          const o = delLines[k], nw = addLines[k];
+          if (o !== undefined && nw !== undefined){
+            const d = inlineDiff(o, nw);
+            rows.push({ left:d.left, right:d.right, lClass:"row-del", rClass:"row-add" });
+            stats.changed++;
+          } else if (o !== undefined){
+            rows.push({ left:escapeHtml(o), right:"", lClass:"row-del", rClass:"row-empty" });
+            stats.removed++;
+          } else {
+            rows.push({ left:"", right:escapeHtml(nw), lClass:"row-empty", rClass:"row-add" });
+            stats.added++;
+          }
+        }
+        i++; // consume the paired "added" part
+      } else {
+        // Pure removal
+        for (const ln of delLines){
+          rows.push({ left:escapeHtml(ln), right:"", lClass:"row-del", rClass:"row-empty" });
+          stats.removed++;
+        }
+      }
+    } else if (part.added){
+      // Pure addition (not preceded by a removal)
+      for (const ln of toLines(part.value)){
+        rows.push({ left:"", right:escapeHtml(ln), lClass:"row-empty", rClass:"row-add" });
+        stats.added++;
+      }
+    }
+  }
+
+  let bodyHtml = "";
+  for (const r of rows){
+    bodyHtml +=
+      '<tr>' +
+        '<td class="left ' + r.lClass + '">' + (r.left || "&nbsp;") + '</td>' +
+        '<td class="right ' + r.rClass + '">' + (r.right || "&nbsp;") + '</td>' +
+      '</tr>';
+  }
+
+  renderSummary(stats);
+  els.output.innerHTML =
+    '<div class="sbs-wrap">' +
+      '<div class="sbs-head">' +
+        '<div class="h-old">Old · ' + escapeHtml(state.docs.old.name) + '</div>' +
+        '<div class="h-new">New · ' + escapeHtml(state.docs.new.name) + '</div>' +
+      '</div>' +
+      '<div class="sbs-body"><table class="diff"><tbody>' + bodyHtml + '</tbody></table></div>' +
+    '</div>';
+}
+
+/* ---------- Redline renderer ----------
+   Word-level diff over the whole document:
+     added (in new, not old)  → red, underlined  (<ins>)
+     removed (in old, not new)→ red, strikethrough (<del>)                  */
+
+function renderRedline(oldText, newText){
+  const a = normalize(oldText);
+  const b = normalize(newText);
+  const parts = Diff.diffWordsWithSpace(a, b);
+
+  let html = "", added = 0, removed = 0;
+  for (const p of parts){
+    const safe = escapeHtml(p.value);
+    if (p.added){ html += "<ins>" + safe + "</ins>"; if (p.value.trim()) added++; }
+    else if (p.removed){ html += "<del>" + safe + "</del>"; if (p.value.trim()) removed++; }
+    else { html += safe; }
+  }
+
+  renderSummary({ added, removed, changed:0 }, true);
+  els.output.innerHTML =
+    '<div class="redline-legend">' +
+      '<span><ins>underlined red</ins> = added in new version</span>' +
+      '<span><del>struck-through red</del> = removed from old version</span>' +
+    '</div>' +
+    '<div class="redline-wrap">' + html + '</div>';
+}
+
+function renderSummary(stats, isRedline){
+  if (isRedline){
+    els.summary.innerHTML =
+      '<div class="chip"><b>' + stats.added + '</b> insertions</div>' +
+      '<div class="chip"><b>' + stats.removed + '</b> deletions</div>';
+  } else {
+    els.summary.innerHTML =
+      '<div class="chip"><b>' + stats.added + '</b> added</div>' +
+      '<div class="chip"><b>' + stats.removed + '</b> removed</div>' +
+      '<div class="chip"><b>' + stats.changed + '</b> changed</div>';
+  }
+}
+</script>
+</body>
+</html>
