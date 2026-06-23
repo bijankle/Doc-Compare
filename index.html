@@ -185,8 +185,6 @@
     border-bottom:1px solid var(--surface-2);
   }
   table.diff td.left{border-right:1px solid var(--border);}
-  td.row-del{background:var(--danger-tint);}
-  td.row-add{background:var(--success-tint);}
   td.row-empty{background:var(--surface);}
   .w-del{background:rgba(216,60,62,.16);color:var(--danger-text);border-radius:3px;}
   .w-add{background:rgba(59,165,92,.18);color:var(--success-text);border-radius:3px;}
@@ -585,6 +583,10 @@ function escapeHtml(s){
 // The fully-formatted rendering of a block.
 function fullBlock(b){ return b.openTag + b.inner + b.closeTag; }
 
+// Whole block, with all of its text wrapped in a single add/del highlight —
+// used for blocks that are entirely new or entirely removed.
+function wholeHighlight(b, cls){ return b.openTag + '<span class="' + cls + '">' + b.inner + '</span>' + b.closeTag; }
+
 // Word-level diff of two blocks' text, wrapped back in each block's formatting.
 function inlineBlockDiff(ob, nb){
   const parts = Diff.diffWordsWithSpace(ob.text, nb.text);
@@ -631,26 +633,26 @@ function renderSideBySide(oldB, newB){
           const nb = k < addCount ? newB[ni+k] : null;
           if (ob && nb){
             const d = inlineBlockDiff(ob, nb);
-            rows.push({ left:d.left, right:d.right, lCls:"row-del", rCls:"row-add" });
+            rows.push({ left:d.left, right:d.right, lCls:"", rCls:"" });
             stats.changed++;
           } else if (ob){
-            rows.push({ left:fullBlock(ob), right:"", lCls:"row-del", rCls:"row-empty" });
+            rows.push({ left:wholeHighlight(ob, "w-del"), right:"", lCls:"", rCls:"row-empty" });
             stats.removed++;
           } else {
-            rows.push({ left:"", right:fullBlock(nb), lCls:"row-empty", rCls:"row-add" });
+            rows.push({ left:"", right:wholeHighlight(nb, "w-add"), lCls:"row-empty", rCls:"" });
             stats.added++;
           }
         }
         oi += count; ni += addCount; i++; // consume paired "added" part
       } else {
         for (let k = 0; k < count; k++){
-          rows.push({ left:fullBlock(oldB[oi]), right:"", lCls:"row-del", rCls:"row-empty" });
+          rows.push({ left:wholeHighlight(oldB[oi], "w-del"), right:"", lCls:"", rCls:"row-empty" });
           oi++; stats.removed++;
         }
       }
     } else { // added only
       for (let k = 0; k < count; k++){
-        rows.push({ left:"", right:fullBlock(newB[ni]), lCls:"row-empty", rCls:"row-add" });
+        rows.push({ left:"", right:wholeHighlight(newB[ni], "w-add"), lCls:"row-empty", rCls:"" });
         ni++; stats.added++;
       }
     }
